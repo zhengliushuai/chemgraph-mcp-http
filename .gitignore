@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+*.part
+artifacts/
+cg_logs/
+*.xyz
+*.traj
+*.json
