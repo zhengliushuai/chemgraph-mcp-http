@@ -11,6 +11,7 @@ from mcp.client.streamable_http import streamablehttp_client
 
 BASE = os.environ.get("MCP_BASE", "http://127.0.0.1:9003")
 ROOT = os.environ.get("CHEMGRAPH_DIR") or os.getcwd()
+FIXTURE = "ethanol_opt.traj"   # self-seeded if missing, so a fresh server can run these tests
 
 
 def local_sha(p):
@@ -38,12 +39,18 @@ async def main():
             tools = [t.name for t in (await s.list_tools()).tools]
             print("TOOLS:", tools)
 
+            # 0. make sure the fixture exists (empty server -> ask the server to build it)
+            if not os.path.exists(os.path.join(ROOT, FIXTURE)):
+                made = await s.call_tool("smiles_to_coordinate_file",
+                                         {"smiles": "CCO", "output_file": FIXTURE})
+                print("seeded fixture:", FIXTURE, "| isError:", made.isError)
+
             # 1. small file round-trip
-            err, p = await call(s, path="ethanol_opt.traj")
+            err, p = await call(s, path=FIXTURE)
             data = base64.b64decode(p["content_base64"]) if p.get("content_base64") else b""
             print(f"[1] small: err={err} name={p.get('filename')} size={p.get('size_bytes')} "
                   f"b64_bytes={len(data)} sha_ok={p.get('sha256') == hashlib.sha256(data).hexdigest()} "
-                  f"file_sha_ok={p.get('sha256') == local_sha(os.path.join(ROOT, 'ethanol_opt.traj'))} "
+                  f"file_sha_ok={p.get('sha256') == local_sha(os.path.join(ROOT, FIXTURE))} "
                   f"note={p.get('note')}")
 
             # 2. traversal / absolute / symlink escapes
@@ -56,7 +63,8 @@ async def main():
             err, p = await call(s, path="does_not_exist.xyz")
             print(f"[3] missing: err={err} msg={(p.get('raw') or '')[:80]!r}")
 
-            # 4. directory
+            # 4. directory (ensure one exists on a fresh server)
+            os.makedirs(os.path.join(ROOT, "cg_logs"), exist_ok=True)
             err, p = await call(s, path="cg_logs")
             print(f"[4] directory: err={err} msg={(p.get('raw') or '')[:80]!r}")
 
